@@ -14,7 +14,7 @@ const App: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(0);
   const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [theme, setTheme] = useState<Theme>('navy');
+  const [theme, setTheme] = useState<Theme>('grey');
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
@@ -85,7 +85,6 @@ const App: React.FC = () => {
     source.connect(audioContextRef.current.destination);
     
     source.onended = () => {
-      // Check if it ended naturally (not stopped by seeking)
       if (sourceNodeRef.current === source) {
         setIsPlaying(false);
         setCurrentTime(audioBuffer.duration);
@@ -93,7 +92,6 @@ const App: React.FC = () => {
       }
     };
 
-    // Calculate start time to track elapsed time correctly even when seeking
     startTimeRef.current = audioContextRef.current.currentTime - offset;
     
     source.start(0, offset);
@@ -117,7 +115,6 @@ const App: React.FC = () => {
     setCurrentTime(newTime);
     
     if (isPlaying) {
-      // Restart from the new time immediately
       playAudio(newTime);
     }
   };
@@ -126,7 +123,6 @@ const App: React.FC = () => {
     if (isPlaying) {
       stopAudio();
     } else {
-      // If at the end, restart from beginning
       const startPos = (currentTime >= (audioBuffer?.duration || 0)) ? 0 : currentTime;
       playAudio(startPos);
     }
@@ -243,12 +239,10 @@ const App: React.FC = () => {
                 </button>
                 <div className="flex-1 space-y-2">
                   <div className="relative h-2 w-full bg-white/5 rounded-full group cursor-pointer">
-                    {/* Visual Progress Layer */}
                     <div 
                       className={`absolute top-0 left-0 h-full rounded-full transition-all duration-100 ease-linear pointer-events-none ${progressColor} ${theme === 'navy' ? 'shadow-[0_0_8px_rgba(96,165,250,0.5)]' : 'shadow-[0_0_8px_rgba(200,200,200,0.3)]'}`}
                       style={{ width: `${progressPercent}%` }}
                     />
-                    {/* Interactive Range Layer */}
                     <input
                       type="range"
                       min="0"
@@ -279,21 +273,8 @@ const App: React.FC = () => {
         </div>
 
         <footer className="pt-6 border-t border-white/5 text-center">
-            <p className="text-[10px] text-white/20 uppercase tracking-[0.3em]">Corporate Public Relations Solution</p>
+            <p className="text-[10px] text-white/20 uppercase tracking-[0.3em]">Create by Corporate Affairs Department (CAD)</p>
         </footer>
-      </div>
-
-      {/* Deployment Guide */}
-      <div className="mt-10 w-full max-w-2xl text-white/40 text-[13px] bg-black/10 p-6 rounded-2xl border border-white/5 backdrop-blur-sm">
-        <h3 className="text-white/80 font-bold mb-3 flex items-center gap-2">
-            <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            วิธีติดตั้งบน Google Sites
-        </h3>
-        <ol className="list-decimal list-inside space-y-1.5 ml-1">
-            <li>นำ Source Code นี้ไปโฮสต์บน Web Hosting (เช่น Netlify หรือ Vercel)</li>
-            <li>คัดลอก URL ของหน้าเว็บที่ออนไลน์แล้ว</li>
-            <li>ใน Google Sites: เลือกเมนู <strong>ฝัง (Embed)</strong> &gt; วาง URL &gt; กด <strong>แทรก (Insert)</strong></li>
-        </ol>
       </div>
     </div>
   );
