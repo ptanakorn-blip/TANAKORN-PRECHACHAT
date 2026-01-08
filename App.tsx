@@ -11,7 +11,7 @@ const App: React.FC = () => {
   const [englishText, setEnglishText] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
   const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [theme, setTheme] = useState<Theme>('navy');
@@ -19,10 +19,12 @@ const App: React.FC = () => {
   const audioContextRef = useRef<AudioContext | null>(null);
   const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
   const progressIntervalRef = useRef<number | null>(null);
+  const startTimeRef = useRef<number>(0);
 
   useEffect(() => {
     return () => {
       if (progressIntervalRef.current) window.clearInterval(progressIntervalRef.current);
+      stopAudio();
     };
   }, []);
 
@@ -44,8 +46,9 @@ const App: React.FC = () => {
     setError(null);
     setIsGenerating(true);
     setAudioBuffer(null);
-    setProgress(0);
+    setCurrentTime(0);
     setIsPlaying(false);
+    stopAudio();
     
     try {
       initAudioContext();
@@ -71,7 +74,7 @@ const App: React.FC = () => {
     setIsPlaying(false);
   };
 
-  const playAudio = () => {
+  const playAudio = (offset: number = 0) => {
     if (!audioBuffer || !audioContextRef.current) return;
     
     stopAudio();
@@ -82,25 +85,51 @@ const App: React.FC = () => {
     source.connect(audioContextRef.current.destination);
     
     source.onended = () => {
-      setIsPlaying(false);
-      setProgress(100);
-      if (progressIntervalRef.current) window.clearInterval(progressIntervalRef.current);
+      // Check if it ended naturally (not stopped by seeking)
+      if (sourceNodeRef.current === source) {
+        setIsPlaying(false);
+        setCurrentTime(audioBuffer.duration);
+        if (progressIntervalRef.current) window.clearInterval(progressIntervalRef.current);
+      }
     };
 
-    const startTime = audioContextRef.current.currentTime;
-    source.start(0);
+    // Calculate start time to track elapsed time correctly even when seeking
+    startTimeRef.current = audioContextRef.current.currentTime - offset;
+    
+    source.start(0, offset);
     sourceNodeRef.current = source;
     setIsPlaying(true);
     
     progressIntervalRef.current = window.setInterval(() => {
-      if (!audioBuffer) return;
-      const elapsed = audioContextRef.current!.currentTime - startTime;
-      const newProgress = Math.min((elapsed / audioBuffer.duration) * 100, 100);
-      setProgress(newProgress);
-      if (newProgress >= 100) {
-          if (progressIntervalRef.current) window.clearInterval(progressIntervalRef.current);
+      if (!audioBuffer || !audioContextRef.current) return;
+      const elapsed = audioContextRef.current.currentTime - startTimeRef.current;
+      if (elapsed >= audioBuffer.duration) {
+        setCurrentTime(audioBuffer.duration);
+        if (progressIntervalRef.current) window.clearInterval(progressIntervalRef.current);
+      } else {
+        setCurrentTime(elapsed);
       }
-    }, 100);
+    }, 50);
+  };
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newTime = parseFloat(e.target.value);
+    setCurrentTime(newTime);
+    
+    if (isPlaying) {
+      // Restart from the new time immediately
+      playAudio(newTime);
+    }
+  };
+
+  const togglePlayback = () => {
+    if (isPlaying) {
+      stopAudio();
+    } else {
+      // If at the end, restart from beginning
+      const startPos = (currentTime >= (audioBuffer?.duration || 0)) ? 0 : currentTime;
+      playAudio(startPos);
+    }
   };
 
   const handleDownload = () => {
@@ -120,14 +149,14 @@ const App: React.FC = () => {
     ? 'bg-[linear-gradient(135deg,#001f3f_0%,#003366_100%)]' 
     : 'bg-[linear-gradient(135deg,#2d3436_0%,#000000_100%)]';
 
-  const accentColor = theme === 'navy' ? 'blue' : 'slate';
   const buttonGradient = theme === 'navy'
     ? 'from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500'
     : 'from-slate-600 to-zinc-600 hover:from-slate-500 hover:to-zinc-500';
 
-  const progressGradient = theme === 'navy'
-    ? 'from-blue-400 to-indigo-400 shadow-[0_0_8px_rgba(96,165,250,0.5)]'
-    : 'from-slate-300 to-zinc-400 shadow-[0_0_8px_rgba(200,200,200,0.3)]';
+  const progressColor = theme === 'navy' ? 'bg-blue-400' : 'bg-slate-300';
+
+  const duration = audioBuffer?.duration || 0;
+  const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
     <div className={`theme-transition flex flex-col items-center justify-center p-4 md:p-8 min-h-screen ${bgGradient}`}>
@@ -202,9 +231,9 @@ const App: React.FC = () => {
           <div className="liquid-glass rounded-2xl p-5">
              <div className="flex items-center gap-5">
                 <button 
-                  onClick={isPlaying ? stopAudio : playAudio}
+                  onClick={togglePlayback}
                   disabled={!audioBuffer}
-                  className={`w-14 h-14 rounded-full flex items-center justify-center transition-all shadow-lg ${audioBuffer ? 'bg-white text-navy-900 hover:scale-105 active:scale-90' : 'bg-white/5 text-white/10 cursor-not-allowed'}`}
+                  className={`w-14 h-14 rounded-full flex items-center justify-center transition-all shadow-lg shrink-0 ${audioBuffer ? 'bg-white text-navy-900 hover:scale-105 active:scale-90' : 'bg-white/5 text-white/10 cursor-not-allowed'}`}
                 >
                   {isPlaying ? (
                     <svg className={`w-7 h-7 fill-current ${theme === 'navy' ? 'text-[#001f3f]' : 'text-slate-800'}`} viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
@@ -213,15 +242,27 @@ const App: React.FC = () => {
                   )}
                 </button>
                 <div className="flex-1 space-y-2">
-                  <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                  <div className="relative h-2 w-full bg-white/5 rounded-full group cursor-pointer">
+                    {/* Visual Progress Layer */}
                     <div 
-                      className={`h-full bg-gradient-to-r transition-all duration-100 ease-linear ${progressGradient}`}
-                      style={{ width: `${progress}%` }}
+                      className={`absolute top-0 left-0 h-full rounded-full transition-all duration-100 ease-linear pointer-events-none ${progressColor} ${theme === 'navy' ? 'shadow-[0_0_8px_rgba(96,165,250,0.5)]' : 'shadow-[0_0_8px_rgba(200,200,200,0.3)]'}`}
+                      style={{ width: `${progressPercent}%` }}
+                    />
+                    {/* Interactive Range Layer */}
+                    <input
+                      type="range"
+                      min="0"
+                      max={duration}
+                      step="0.01"
+                      value={currentTime}
+                      onChange={handleSeek}
+                      disabled={!audioBuffer}
+                      className="absolute top-0 left-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
                     />
                   </div>
-                  <div className="flex justify-between text-xs text-white/30 font-medium">
-                    <span>{isPlaying ? 'กำลังเล่น...' : (audioBuffer ? 'ไฟล์เสียงพร้อมแล้ว' : 'รอการสร้างเสียง')}</span>
-                    <span>{audioBuffer ? `${audioBuffer.duration.toFixed(1)}s` : '0.0s'}</span>
+                  <div className="flex justify-between text-xs text-white/30 font-medium font-mono">
+                    <span>{currentTime.toFixed(1)}s</span>
+                    <span>{duration.toFixed(1)}s</span>
                   </div>
                 </div>
              </div>
