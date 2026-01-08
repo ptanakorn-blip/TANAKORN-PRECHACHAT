@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { generateSpeech } from './geminiService';
-import { VoiceType } from './types';
+import { VoiceProfile, VOICE_PROFILES } from './types';
 import { audioBufferToWav } from './audioUtils';
 
 type Theme = 'navy' | 'grey';
@@ -9,6 +9,7 @@ type Theme = 'navy' | 'grey';
 const App: React.FC = () => {
   const [thaiText, setThaiText] = useState('');
   const [englishText, setEnglishText] = useState('');
+  const [selectedProfileId, setSelectedProfileId] = useState<string>(VOICE_PROFILES[0].id);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -43,6 +44,8 @@ const App: React.FC = () => {
       return;
     }
 
+    const profile = VOICE_PROFILES.find(p => p.id === selectedProfileId) || VOICE_PROFILES[0];
+
     setError(null);
     setIsGenerating(true);
     setAudioBuffer(null);
@@ -52,7 +55,7 @@ const App: React.FC = () => {
     
     try {
       initAudioContext();
-      const buffer = await generateSpeech(thaiText, englishText, VoiceType.FEMALE, audioContextRef.current!);
+      const buffer = await generateSpeech(thaiText, englishText, profile, audioContextRef.current!);
       setAudioBuffer(buffer);
     } catch (err: any) {
       console.error(err);
@@ -154,11 +157,13 @@ const App: React.FC = () => {
   const duration = audioBuffer?.duration || 0;
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
+  const currentProfile = VOICE_PROFILES.find(p => p.id === selectedProfileId);
+
   return (
     <div className={`theme-transition flex flex-col items-center justify-center p-4 md:p-8 min-h-screen ${bgGradient}`}>
       
       {/* Theme Switcher */}
-      <div className="absolute top-6 right-6 flex items-center gap-2 p-1 liquid-glass rounded-full border-white/10">
+      <div className="absolute top-6 right-6 flex items-center gap-2 p-1 liquid-glass rounded-full border-white/10 z-50">
         <button 
           onClick={() => setTheme('navy')}
           className={`w-8 h-8 rounded-full border-2 transition-all ${theme === 'navy' ? 'bg-[#003366] border-white' : 'bg-[#003366]/40 border-transparent hover:border-white/20'}`}
@@ -174,29 +179,57 @@ const App: React.FC = () => {
       <div className="w-full max-w-2xl liquid-glass rounded-3xl p-6 md:p-10 text-white space-y-8">
         
         <header className="text-center space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight">PR Voice Generator</h1>
-          <p className="text-white/60 text-sm">สร้างเสียงประกาศสำหรับองค์กร</p>
+          <h1 className="text-3xl font-bold tracking-tight text-white/90">PR Voice Generator</h1>
+          <p className="text-white/50 text-sm">สร้างเสียงประกาศสำหรับองค์กร</p>
         </header>
+
+        {/* Voice Selection Dropdown */}
+        <div className="space-y-2.5">
+          <label className="text-[11px] font-bold tracking-widest text-white/40 uppercase ml-1">เลือกประเภทเสียงประกาศ</label>
+          <div className="relative">
+            <select
+              value={selectedProfileId}
+              onChange={(e) => setSelectedProfileId(e.target.value)}
+              className="w-full glass-input rounded-xl p-4 pr-10 appearance-none text-white cursor-pointer focus:ring-2 focus:ring-white/10"
+            >
+              {VOICE_PROFILES.map((profile) => (
+                <option key={profile.id} value={profile.id} className="bg-[#1a1a1a] text-white">
+                  {profile.label} - {profile.description}
+                </option>
+              ))}
+            </select>
+            <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none text-white/40">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </div>
+          {currentProfile && (
+            <p className="text-[11px] text-white/30 italic ml-1">
+              * คาแรคเตอร์: {currentProfile.description}
+            </p>
+          )}
+        </div>
 
         {/* Input Sections */}
         <div className="grid grid-cols-1 gap-6">
           <div className="relative group">
-            <div className={`absolute -top-3 left-4 ${theme === 'navy' ? 'bg-[#001f3f]' : 'bg-[#2d3436]'} px-2 py-0.5 rounded text-[10px] font-bold text-blue-400 border border-blue-400/30`}>THAI TEXT</div>
+            <div className={`absolute -top-3 left-4 ${theme === 'navy' ? 'bg-[#001f3f]' : 'bg-[#2d3436]'} px-2 py-0.5 rounded text-[10px] font-bold text-blue-400 border border-blue-400/30 shadow-sm`}>THAI TEXT</div>
             <textarea
               value={thaiText}
               onChange={(e) => setThaiText(e.target.value)}
               placeholder="ใส่ข้อความภาษาไทยที่นี่..."
-              className="w-full h-28 glass-input rounded-xl p-4 text-white placeholder-white/20 resize-none pt-6 focus:ring-2 focus:ring-blue-500/20"
+              className="w-full h-24 glass-input rounded-xl p-4 text-white placeholder-white/20 resize-none pt-6 focus:ring-2 focus:ring-blue-500/20"
             />
           </div>
 
           <div className="relative group">
-            <div className={`absolute -top-3 left-4 ${theme === 'navy' ? 'bg-[#001f3f]' : 'bg-[#2d3436]'} px-2 py-0.5 rounded text-[10px] font-bold text-green-400 border border-green-400/30`}>ENGLISH TEXT</div>
+            <div className={`absolute -top-3 left-4 ${theme === 'navy' ? 'bg-[#001f3f]' : 'bg-[#2d3436]'} px-2 py-0.5 rounded text-[10px] font-bold text-green-400 border border-green-400/30 shadow-sm`}>ENGLISH TEXT</div>
             <textarea
               value={englishText}
               onChange={(e) => setEnglishText(e.target.value)}
               placeholder="Enter English text here..."
-              className="w-full h-28 glass-input rounded-xl p-4 text-white placeholder-white/20 resize-none pt-6 focus:ring-2 focus:ring-green-500/20"
+              className="w-full h-24 glass-input rounded-xl p-4 text-white placeholder-white/20 resize-none pt-6 focus:ring-2 focus:ring-green-500/20"
             />
           </div>
         </div>
@@ -216,7 +249,7 @@ const App: React.FC = () => {
                 </svg>
                 กำลังสร้างไฟล์เสียง...
               </span>
-            ) : 'สร้างเสียงประกาศ (รวมไทย-อังกฤษ)'}
+            ) : 'สร้างเสียงประกาศ'}
           </button>
         </div>
 
@@ -238,7 +271,7 @@ const App: React.FC = () => {
                   )}
                 </button>
                 <div className="flex-1 space-y-2">
-                  <div className="relative h-2 w-full bg-white/5 rounded-full group cursor-pointer">
+                  <div className="relative h-2 w-full bg-white/5 rounded-full group cursor-pointer overflow-hidden">
                     <div 
                       className={`absolute top-0 left-0 h-full rounded-full transition-all duration-100 ease-linear pointer-events-none ${progressColor} ${theme === 'navy' ? 'shadow-[0_0_8px_rgba(96,165,250,0.5)]' : 'shadow-[0_0_8px_rgba(200,200,200,0.3)]'}`}
                       style={{ width: `${progressPercent}%` }}
@@ -251,7 +284,7 @@ const App: React.FC = () => {
                       value={currentTime}
                       onChange={handleSeek}
                       disabled={!audioBuffer}
-                      className="absolute top-0 left-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                      className="absolute top-0 left-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed z-10"
                     />
                   </div>
                   <div className="flex justify-between text-xs text-white/30 font-medium font-mono">

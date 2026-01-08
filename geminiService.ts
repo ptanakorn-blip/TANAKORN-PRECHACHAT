@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Modality } from "@google/genai";
-import { VoiceType } from "./types";
+import { VoiceProfile } from "./types";
 import { decodeBase64, decodeAudioData } from "./audioUtils";
 
 const API_KEY = process.env.API_KEY || "";
@@ -8,13 +8,12 @@ const API_KEY = process.env.API_KEY || "";
 export async function generateSpeech(
   thaiText: string,
   englishText: string,
-  voiceName: VoiceType,
+  profile: VoiceProfile,
   audioContext: AudioContext
 ): Promise<AudioBuffer> {
   const ai = new GoogleGenAI({ apiKey: API_KEY });
 
-  // Combining texts for a natural flow
-  const prompt = `Please speak the following PR announcement naturally.
+  const prompt = `Please speak the following PR announcement naturally using the persona: ${profile.promptInstruction}
 Thai part: ${thaiText}
 English part: ${englishText}`;
 
@@ -25,7 +24,7 @@ English part: ${englishText}`;
       responseModalities: [Modality.AUDIO],
       speechConfig: {
         voiceConfig: {
-          prebuiltVoiceConfig: { voiceName },
+          prebuiltVoiceConfig: { voiceName: profile.voiceName },
         },
       },
     },
@@ -38,6 +37,5 @@ English part: ${englishText}`;
   }
 
   const audioBytes = decodeBase64(base64Audio);
-  // Gemini TTS returns raw PCM 24kHz mono
   return await decodeAudioData(audioBytes, audioContext, 24000, 1);
 }
